@@ -5,20 +5,15 @@
     <title>Telemetry Node</title>
     <style>
         body { font-family: sans-serif; display: flex; gap: 2vw; padding: 2vw; }
-        .zone { border: 2px dashed #666; padding: 2rem; width: 30vw; text-align: center; }
-        
-        /* Height expanded from 50vh to 85vh */
+        .zone { border: 2px dashed #666; padding: 2rem; width: 30vw; text-align: center; transition: background-color 0.2s; }
         .viz { border: 1px solid #333; width: 60vw; min-height: 85vh; padding: 1rem; display: flex; flex-direction: column; gap: 10px; }
-        
-        /* Height expanded from 45vh to 80vh */
         .viz-frame { flex: 1; width: 100%; border: none; min-height: 80vh; }
-        
         .btn { padding: 10px; background: #007bff; color: white; border: none; cursor: pointer; text-align: center; text-decoration: none; font-size: 14px; }
     </style>
 </head>
 <body>
 
-    <div class="zone">
+    <div class="zone" id="drop-zone">
         <h3>Upload CSV Payload</h3>
         <input type="file" id="file-input" accept=".csv" style="width: 100%;">
         <button type="button" class="btn" style="margin-top:20px; width:100%;" onclick="transmitTelemetry()">Upload & Sync</button>
@@ -36,24 +31,52 @@
     </div>
 
     <script>
-        // System initialization configuration path
         const CONFIG_SOURCE = "config.txt"; 
         let ENDPOINT = "";
 
-        // Initialization hook: Read path from text file automatically
+        // Initialization hook
         fetch(CONFIG_SOURCE)
             .then(res => res.text())
             .then(url => {
                 ENDPOINT = url.trim();
-                // Assign centralized link parameter to backend form structure
                 document.getElementById('hidden-telemetry-form').action = ENDPOINT;
+                fetchCurrentChart(); // Auto-load chart profile upon configuration resolution
             })
             .catch(err => console.error("Config load failed:", err));
 
         function fetchCurrentChart() {
-            if (!ENDPOINT) return alert("System initializing...");
-            document.getElementById('viz-frame').src = ENDPOINT;
+            if (!ENDPOINT) return;
+            const cacheBuster = new Date().getTime();
+            document.getElementById('viz-frame').src = ENDPOINT + "?t=" + cacheBuster;
         }
+
+        const dropZone = document.getElementById('drop-zone');
+
+        dropZone.addEventListener('dragover', (e) => {
+            e.preventDefault();
+            dropZone.style.backgroundColor = '#e9ecef'; 
+        });
+
+        dropZone.addEventListener('dragleave', (e) => {
+            e.preventDefault();
+            dropZone.style.backgroundColor = 'transparent'; 
+        });
+
+        dropZone.addEventListener('drop', (e) => {
+            e.preventDefault();
+            dropZone.style.backgroundColor = 'transparent';
+
+            if (!ENDPOINT) return alert("System initializing...");
+
+            // FIX: Isolate individual item file blob from dropped array reference
+            const file = e.dataTransfer.files [ 0 ] ; 
+            
+            if (file && file.name.toLowerCase().endsWith('.csv')) {
+                processAndSubmitFile(file);
+            } else {
+                alert("Please drop a valid .csv file.");
+            }
+        });
 
         function transmitTelemetry() {
             if (!ENDPOINT) return alert("System initializing...");
@@ -62,18 +85,27 @@
                 alert("Select CSV file first.");
                 return;
             }
+            // FIX: Isolate individual item file blob from input element list
+            processAndSubmitFile(fileInput.files [ 0 ] );
+        }
 
-            const file = fileInput.files [ 0 ] ;
+        function processAndSubmitFile(file) {
             const reader = new FileReader();
-
             reader.onload = function(e) {
                 const textContent = e.target.result;
                 document.getElementById('csv-string-payload').value = textContent;
                 document.getElementById('hidden-telemetry-form').submit();
             };
-
             reader.readAsText(file);
         }
+        // --- ADD THIS TO THE BOTTOM OF YOUR SCRIPT ---
+        // Global fail-safe: Prevents the browser from opening the file if you miss the drop zone
+        window.addEventListener('dragover', function(e) {
+            e.preventDefault();
+        });
+        window.addEventListener('drop', function(e) {
+            e.preventDefault();
+        });
     </script>
 </body>
 </html>
